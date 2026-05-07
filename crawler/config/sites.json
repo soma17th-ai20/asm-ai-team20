@@ -1,0 +1,55 @@
+{
+  "sites": [
+    {
+      "id": "snu_cse_notice",
+      "name": "서울대 컴퓨터공학부 공지",
+      "url": "https://cse.snu.ac.kr/community/notice",
+      "scraper": "snu_cse_notice",
+      "category": "school",
+      "enabled": true,
+      "render": "http"
+    },
+    {
+      "id": "snu_cba_notice",
+      "name": "서울대 경영대학 뉴스룸 공지",
+      "url": "https://cba.snu.ac.kr/newsroom/notice?sc=y",
+      "scraper": "snu_cba_notice",
+      "category": "school",
+      "enabled": true,
+      "render": "http"
+    },
+    {
+      "id": "saramin_hot100",
+      "name": "사람인 HOT100",
+      "url": "https://www.saramin.co.kr/zf_user/jobs/hot100",
+      "scraper": "saramin_hot100",
+      "category": "job",
+      "enabled": true,
+      "render": "http"
+    },
+    {
+      "id": "naver_recruit",
+      "name": "네이버 채용 공고",
+      "url": "https://recruit.navercorp.com/rcrt/list.do",
+      "scraper": "naver_recruit",
+      "category": "job",
+      "enabled": true,
+      "render": "playwright"
+    },
+    {
+      "id": "jobkorea_ai",
+      "name": "잡코리아 AI 채용",
+      "url": "https://www.jobkorea.co.kr/recruit/ai-jobs?pageNo=1&pageSize=100",
+      "scraper": "jobkorea_ai",
+      "category": "job",
+      "enabled": true,
+      "render": "http"
+    }
+  ],
+  "defaults": {
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "request_delay_seconds": 5,
+    "request_timeout_seconds": 20,
+    "max_items_per_run": 50
+  }
+}
