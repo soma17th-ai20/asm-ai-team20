@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from typing import Callable
-
+from . import (
+    jobkorea_ai,
+    naver_recruit,
+    saramin_hot100,
+    snu_cba_notice,
+    snu_cse_notice,
+)
 from .base import ScrapeContext, Scraper
-from .snu_cse_notice import scrape as snu_cse_notice
-from .snu_cba_notice import scrape as snu_cba_notice
-from .saramin_hot100 import scrape as saramin_hot100
-from .naver_recruit import scrape as naver_recruit
-from .jobkorea_ai import scrape as jobkorea_ai
 
 REGISTRY: dict[str, Scraper] = {
-    "snu_cse_notice": snu_cse_notice,
-    "snu_cba_notice": snu_cba_notice,
-    "saramin_hot100": saramin_hot100,
-    "naver_recruit": naver_recruit,
-    "jobkorea_ai": jobkorea_ai,
+    "snu_cse_notice": snu_cse_notice.scrape,
+    "snu_cba_notice": snu_cba_notice.scrape,
+    "saramin_hot100": saramin_hot100.scrape,
+    "naver_recruit": naver_recruit.scrape,
+    "jobkorea_ai": jobkorea_ai.scrape,
 }
 
 
@@ -24,4 +24,14 @@ def get(name: str) -> Scraper:
     return REGISTRY[name]
 
 
-__all__ = ["REGISTRY", "ScrapeContext", "Scraper", "get"]
+__all__ = [
+    "REGISTRY",
+    "ScrapeContext",
+    "Scraper",
+    "get",
+    "snu_cse_notice",
+    "snu_cba_notice",
+    "saramin_hot100",
+    "naver_recruit",
+    "jobkorea_ai",
+]

@@ -34,7 +34,7 @@
       "scraper": "naver_recruit",
       "category": "job",
       "enabled": true,
-      "render": "playwright"
+      "render": "http"
     },
     {
       "id": "jobkorea_ai",

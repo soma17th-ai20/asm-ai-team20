@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\".venv/bin/python tests/test_models_storage.py && .venv/bin/python tests/test_scrapers_parse.py\",\"timeout\":30000,\"description\":\"Run all unit tests\"}",
+  "error": "Exit code 1\nall tests passed\nTraceback (most recent call last):\n  File \"/Users/yanghyeonseo/Desktop/asm-ai-team20/crawler/tests/test_scrapers_parse.py\", line 136, in <module>\n    test_snu_cse_table_layout()\n  File \"/Users/yanghyeonseo/Desktop/asm-ai-team20/crawler/tests/test_scrapers_parse.py\", line 41, in test_snu_cse_table_layout\n    items = snu_cse_notice.parse_html(html, site, DEFAULTS)\nAttributeError: 'function' object has no attribute 'parse_html'",
+  "timestamp": "2026-05-07T14:08:46.966Z",
+  "retry_count": 1
+}

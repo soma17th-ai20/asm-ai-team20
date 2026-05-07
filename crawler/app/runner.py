@@ -7,7 +7,7 @@ from typing import Optional
 
 from . import scrapers, storage
 from .config import CrawlerConfig, SiteConfig, load_config
-from .fetcher import fetch_html, http_client
+from .fetcher import http_client
 from .models import CrawlReport, RawNotice
 from .scrapers.base import ScrapeContext
 
@@ -19,19 +19,12 @@ def crawl_site(config: CrawlerConfig, site: SiteConfig) -> CrawlReport:
     errors: list[str] = []
     items: list[RawNotice] = []
 
-    if site.render == "playwright":
-        errors.append(
-            "playwright 렌더링 미설치 — HTTP-only 폴백으로 시도합니다. "
-            "필요 시 'pip install playwright && playwright install chromium' 후 재시도."
-        )
-
     try:
         with http_client(config.defaults) as client:
-            html = fetch_html(client, site.url)
-        ctx = ScrapeContext(site=site, defaults=config.defaults, html=html)
-        scraper = scrapers.get(site.scraper)
-        items = list(scraper(ctx))
-    except Exception as exc:  # noqa: BLE001 — 외부 사이트 장애를 통째로 잡아 다음 사이트로 넘긴다
+            ctx = ScrapeContext(site=site, defaults=config.defaults, client=client)
+            scraper = scrapers.get(site.scraper)
+            items = list(scraper(ctx))
+    except Exception as exc:  # noqa: BLE001 — 외부 사이트 장애로 다음 사이트로 넘어간다
         errors.append(f"fetch/parse failed: {exc!r}")
 
     inserted = duplicates = 0
@@ -52,16 +45,16 @@ def crawl_site(config: CrawlerConfig, site: SiteConfig) -> CrawlReport:
 
 def crawl_all(config: CrawlerConfig, source_id: Optional[str] = None) -> list[CrawlReport]:
     reports: list[CrawlReport] = []
-    targets = (
-        [config.site(source_id)] if source_id else list(config.enabled_sites())
-    )
+    targets = [config.site(source_id)] if source_id else list(config.enabled_sites())
     for i, site in enumerate(targets):
         if i > 0:
             time.sleep(config.defaults.request_delay_seconds)
         log.info("crawl start: %s", site.id)
         report = crawl_site(config, site)
-        log.info("crawl done: %s — fetched=%d inserted=%d dup=%d errors=%d",
-                 site.id, report.fetched, report.inserted, report.duplicates, len(report.errors))
+        log.info(
+            "crawl done: %s — fetched=%d inserted=%d dup=%d errors=%d",
+            site.id, report.fetched, report.inserted, report.duplicates, len(report.errors),
+        )
         reports.append(report)
     return reports
 
@@ -91,9 +84,8 @@ def main() -> None:
     if args.cmd == "dry-run":
         site = config.site(args.source)
         with http_client(config.defaults) as client:
-            html = fetch_html(client, site.url)
-        ctx = ScrapeContext(site=site, defaults=config.defaults, html=html)
-        items = list(scrapers.get(site.scraper)(ctx))
+            ctx = ScrapeContext(site=site, defaults=config.defaults, client=client)
+            items = list(scrapers.get(site.scraper)(ctx))
         for n in items[: args.limit]:
             print(f"- {n.title} | {n.url} | {n.posted_at or ''}")
         print(f"total parsed: {len(items)}")
