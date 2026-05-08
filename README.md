@@ -142,6 +142,7 @@ cd crawler
 | `saramin_hot100` | https://www.saramin.co.kr/zf_user/jobs/hot100                    | HTML                                       |
 | `naver_recruit`  | https://recruit.navercorp.com/rcrt/list.do                       | AJAX JSON 직접 호출 (`loadJobList.do`)     |
 | `jobkorea_ai`    | https://www.jobkorea.co.kr/recruit/ai-jobs?pageNo=1&pageSize=100 | AJAX JSON+embedded HTML (`GetRecruitList`) |
+| `naver_cafe_notice` | https://cafe.naver.com/f-e/cafes/31723403/menus/2             | 공식 SPA의 공개 ArticleList AJAX (`apis.naver.com`) |
 
 사이트 추가는 `sites.json`에 한 줄 + `crawler/app/scrapers/<id>.py` 한 개 + `crawler/app/scrapers/__init__.py` 레지스트리에 한 줄.
 

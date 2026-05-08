@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 from app.config import Defaults, SiteConfig  # noqa: E402
 from app.scrapers import (  # noqa: E402
     jobkorea_ai,
+    naver_cafe_notice,
     naver_recruit,
     saramin_hot100,
     snu_cba_notice,
@@ -117,6 +118,49 @@ def test_naver_payload_basic():
     assert "신입" in (items[0].summary or "")
 
 
+def test_naver_cafe_payload_basic():
+    payload = {
+        "message": {
+            "result": {
+                "articleList": [
+                    {
+                        "articleId": 2,
+                        "subject": "소마 장학금 공지",
+                        "writerNickname": "양현서",
+                        "writeDateTimestamp": 1778256759050,
+                        "readCount": 0,
+                        "commentCount": 0,
+                    },
+                    {"articleId": None, "subject": "skip"},
+                    {"articleId": 3, "subject": ""},
+                ]
+            }
+        }
+    }
+    site = _site(
+        "naver_cafe_notice",
+        "https://cafe.naver.com/f-e/cafes/31723403/menus/2",
+    )
+    items = naver_cafe_notice.parse_payload(payload, site, DEFAULTS)
+    assert len(items) == 1
+    assert items[0].title == "소마 장학금 공지"
+    assert "cafes/31723403/articles/2" in str(items[0].url)
+    assert items[0].summary and "by 양현서" in items[0].summary
+    # writeDateTimestamp(epoch ms) → ISO 변환 확인
+    assert items[0].posted_at and items[0].posted_at.startswith("2026-")
+
+
+def test_naver_cafe_url_pattern_required():
+    """카페 URL 패턴이 안 맞으면 빈 결과 — 잘못된 sites.json 등록을 방어한다."""
+    site = _site("naver_cafe_notice", "https://cafe.naver.com/some-other-path")
+    items = naver_cafe_notice.parse_payload(
+        {"message": {"result": {"articleList": [{"articleId": 1, "subject": "x"}]}}},
+        site,
+        DEFAULTS,
+    )
+    assert items == []
+
+
 def test_safe_href_filters_javascript_anchor():
     """공유 버튼 같은 javascript: 링크가 통째로 결과를 죽이지 않아야 한다."""
     html = """
@@ -138,5 +182,7 @@ if __name__ == "__main__":
     test_saramin_with_company()
     test_jobkorea_fragment_parses_recruit_items()
     test_naver_payload_basic()
+    test_naver_cafe_payload_basic()
+    test_naver_cafe_url_pattern_required()
     test_safe_href_filters_javascript_anchor()
     print("all parser tests passed")

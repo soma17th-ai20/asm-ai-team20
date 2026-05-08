@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from . import (
     jobkorea_ai,
+    naver_cafe_notice,
     naver_recruit,
     saramin_hot100,
     snu_cba_notice,
@@ -15,6 +16,7 @@ REGISTRY: dict[str, Scraper] = {
     "saramin_hot100": saramin_hot100.scrape,
     "naver_recruit": naver_recruit.scrape,
     "jobkorea_ai": jobkorea_ai.scrape,
+    "naver_cafe_notice": naver_cafe_notice.scrape,
 }
 
 
@@ -34,4 +36,5 @@ __all__ = [
     "saramin_hot100",
     "naver_recruit",
     "jobkorea_ai",
+    "naver_cafe_notice",
 ]
