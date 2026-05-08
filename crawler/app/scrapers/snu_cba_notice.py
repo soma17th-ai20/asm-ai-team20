@@ -7,6 +7,7 @@ from ..models import RawNotice
 from .base import ScrapeContext, extract_body_text, first_text, make_notice, safe_href, take
 
 BODY_SELECTORS = [
+    ".bbs_contents",
     ".board-view",
     ".view-cont",
     ".news-view",

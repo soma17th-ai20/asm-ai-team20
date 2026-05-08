@@ -4,11 +4,12 @@ from typing import Iterable
 
 from ..config import Defaults, SiteConfig
 from ..models import RawNotice
-from .base import ScrapeContext, make_notice, take
+from .base import ScrapeContext, extract_body_text, make_notice, take
 
 # 네이버 채용은 SPA지만 AJAX JSON 엔드포인트가 공개되어 있어 playwright 없이 동작한다.
 AJAX_URL = "https://recruit.navercorp.com/rcrt/loadJobList.do"
 DETAIL_TEMPLATE = "https://recruit.navercorp.com/rcrt/view.do?annoId={anno_id}&lang=ko"
+BODY_SELECTORS = [".detail_wrap"]
 
 
 def parse_payload(payload: dict, site: SiteConfig, defaults: Defaults) -> list[RawNotice]:
@@ -51,4 +52,9 @@ def scrape(ctx: ScrapeContext) -> Iterable[RawNotice]:
         params={"sortOrderBy": "newDt", "pageIndex": 1},
     )
     resp.raise_for_status()
-    return parse_payload(resp.json(), ctx.site, ctx.defaults)
+    items = parse_payload(resp.json(), ctx.site, ctx.defaults)
+    for item in items:
+        detail = ctx.client.get(str(item.url), headers={"Referer": ctx.site.url})
+        detail.raise_for_status()
+        item.body = extract_body_text(detail.text, BODY_SELECTORS)
+    return items

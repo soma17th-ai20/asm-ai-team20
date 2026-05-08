@@ -67,6 +67,18 @@ def extract_body_text(html: str, selectors: list[str]) -> Optional[str]:
     return None
 
 
+def extract_meta_content(html: str, names: list[str]) -> Optional[str]:
+    soup = BeautifulSoup(html, "lxml")
+    wanted = {name.lower() for name in names}
+    for meta in soup.select("meta[content]"):
+        key = (meta.get("name") or meta.get("property") or "").strip().lower()
+        if key in wanted:
+            content = compact_text(meta.get("content"))
+            if content:
+                return content
+    return None
+
+
 def make_notice(
     *,
     site_id: str,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from typing import Iterable
 
 from ..config import Defaults, SiteConfig
@@ -15,6 +17,26 @@ BODY_SELECTORS = [
     "article",
     ".content",
 ]
+NOTICE_URL_RE = re.compile(r"/(?:ko/)?community/notice/\d+(?:[/?#]|$)")
+BODY_JSON_PATTERNS = [
+    re.compile(r'"html","(.*?)","cssRules"', re.DOTALL),
+    re.compile(r'\\"html\\",\\"(.*?)\\",\\"cssRules\\"', re.DOTALL),
+]
+
+
+def _extract_streamed_body(html: str) -> str | None:
+    for pattern in BODY_JSON_PATTERNS:
+        m = pattern.search(html)
+        if not m:
+            continue
+        try:
+            html_fragment = json.loads(f'"{m.group(1)}"')
+        except json.JSONDecodeError:
+            continue
+        body = extract_body_text(html_fragment, ["body", "html"])
+        if body:
+            return body
+    return None
 
 
 def parse_html(html: str, site: SiteConfig, defaults: Defaults) -> list[RawNotice]:
@@ -30,7 +52,7 @@ def parse_html(html: str, site: SiteConfig, defaults: Defaults) -> list[RawNotic
         if not link:
             continue
         url = safe_href(link.get("href", ""), site.url)
-        if not url:
+        if not url or not NOTICE_URL_RE.search(url):
             continue
         title = first_text(link)
         date_node = row.select_one(".date, .td-date, time, td:nth-of-type(4), td:nth-of-type(5)")
@@ -52,5 +74,5 @@ def scrape(ctx: ScrapeContext) -> Iterable[RawNotice]:
     for item in items:
         detail = ctx.client.get(str(item.url))
         detail.raise_for_status()
-        item.body = extract_body_text(detail.text, BODY_SELECTORS)
+        item.body = _extract_streamed_body(detail.text) or extract_body_text(detail.text, BODY_SELECTORS)
     return items

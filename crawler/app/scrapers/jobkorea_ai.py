@@ -1,13 +1,28 @@
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
 from typing import Iterable
 
 from ..config import Defaults, SiteConfig
 from ..models import RawNotice
-from .base import ScrapeContext, first_text, make_notice, safe_href, take
+from .base import ScrapeContext, extract_body_text, first_text, make_notice, safe_href, take
 
 # 잡코리아 AI잡스는 AJAX JSON으로 HTML 조각(`html` 필드)을 반환한다.
 AJAX_URL = "https://www.jobkorea.co.kr/recruit/ai-jobs/GetRecruitList"
+BODY_SELECTORS = ["#detail-content", ".view-content-detail"]
+
+
+def _detail_iframe_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 3 or parts[0] != "Recruit" or parts[1] != "GI_Read":
+        return None
+    gno = parts[2]
+    sc = (parse_qs(parsed.query).get("sc") or [""])[0]
+    return (
+        "https://www.jobkorea.co.kr/Recruit/GI_Read_Comt_Ifrm"
+        f"?sc={sc}&Gno={gno}&isHiringCenter=false&hideMapView=false"
+    )
 
 
 def parse_html_fragment(html: str, site: SiteConfig, defaults: Defaults) -> list[RawNotice]:
@@ -24,12 +39,10 @@ def parse_html_fragment(html: str, site: SiteConfig, defaults: Defaults) -> list
             continue
         title = first_text(link.select_one(".recruit-title .title, h3.title"))
         company = first_text(it.select_one(".company-name a, .company-name"))
-        deadline = link.get("data-applyclosedt") or None
         notice = make_notice(
             site_id=site.id,
             title=f"[{company}] {title}" if company else title,
             url=url,
-            summary=deadline,
         )
         if notice:
             out.append(notice)
@@ -48,4 +61,12 @@ def scrape(ctx: ScrapeContext) -> Iterable[RawNotice]:
     )
     resp.raise_for_status()
     data = resp.json()
-    return parse_html_fragment(data.get("html") or "", ctx.site, ctx.defaults)
+    items = parse_html_fragment(data.get("html") or "", ctx.site, ctx.defaults)
+    for item in items:
+        iframe_url = _detail_iframe_url(str(item.url))
+        if not iframe_url:
+            continue
+        detail = ctx.client.get(iframe_url, headers={"Referer": str(item.url)})
+        detail.raise_for_status()
+        item.body = extract_body_text(detail.text, BODY_SELECTORS)
+    return items

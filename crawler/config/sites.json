@@ -47,7 +47,7 @@
     },
     {
       "id": "naver_cafe_notice",
-      "name": "네이버 카페 게시판 (cafeId=31723403, menuId=2)",
+      "name": "소마 네이버 카페 게시판",
       "url": "https://cafe.naver.com/f-e/cafes/31723403/menus/2",
       "scraper": "naver_cafe_notice",
       "category": "community",
