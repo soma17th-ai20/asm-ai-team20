@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS notices (
     url         TEXT    NOT NULL,
     posted_at   TEXT,
     summary     TEXT,
+    body        TEXT,
     hash        TEXT    NOT NULL UNIQUE,
     fetched_at  TEXT    NOT NULL
 );
@@ -38,10 +39,19 @@ def connect(db_path: Path | str | None = None) -> Iterator[sqlite3.Connection]:
     conn.row_factory = sqlite3.Row
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         yield conn
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(notices)").fetchall()
+    }
+    if "body" not in columns:
+        conn.execute("ALTER TABLE notices ADD COLUMN body TEXT")
 
 
 def insert_many(conn: sqlite3.Connection, notices: Iterable[RawNotice]) -> tuple[int, int]:
@@ -52,8 +62,8 @@ def insert_many(conn: sqlite3.Connection, notices: Iterable[RawNotice]) -> tuple
         try:
             conn.execute(
                 """
-                INSERT INTO notices (source_id, title, url, posted_at, summary, hash, fetched_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO notices (source_id, title, url, posted_at, summary, body, hash, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     n.source_id,
@@ -61,6 +71,7 @@ def insert_many(conn: sqlite3.Connection, notices: Iterable[RawNotice]) -> tuple
                     str(n.url),
                     n.posted_at,
                     n.summary,
+                    n.body,
                     n.content_hash(),
                     fetched_at,
                 ),

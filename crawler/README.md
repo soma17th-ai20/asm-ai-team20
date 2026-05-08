@@ -49,6 +49,7 @@ crawler/
 | `saramin_hot100` | https://www.saramin.co.kr/zf_user/jobs/hot100 |
 | `naver_recruit` | https://recruit.navercorp.com/rcrt/list.do |
 | `jobkorea_ai` | https://www.jobkorea.co.kr/recruit/ai-jobs?pageNo=1&pageSize=100 |
+| `naver_cafe_notice` | https://cafe.naver.com/f-e/cafes/31723403/menus/2 |
 
 ## 셋업
 
@@ -98,6 +99,8 @@ OpenAPI 스펙: `http://localhost:8000/docs`
 - **서성민(백엔드 API)** — `/api/notices`를 그대로 호출하거나, `storage.py`의 `notices` 테이블을 PostgreSQL로 마이그레이션 후 공유 DB로 합치면 된다. 데이터 모델(`RawNotice`/`StoredNotice`)은 Pydantic이라 그대로 import 가능.
 - **권기혁(AI 파이프라인)** — `RawNotice` 단위로 임베딩 파이프라인에 흘리면 된다. 새 공지 알림이 필요하면 `storage.insert_many` 호출 전후를 hook으로 바꾸거나, `POST /api/crawl` 응답의 `inserted` 카운트를 활용.
 - **이주호(스케줄러)** — Celery Beat에서 30분 주기로 `POST /api/crawl`을 치거나, `app.runner.crawl_all`을 직접 import해 task로 등록하면 된다.
+
+학교 공지 계열 스크래퍼(`snu_cse_notice`, `snu_cba_notice`)는 상세 페이지 본문까지 `body` 필드로 저장한다. 채용/외부 플랫폼 계열은 현재 목록 메타데이터 중심이다.
 
 ## 중복 제거 정책
 

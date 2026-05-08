@@ -15,6 +15,7 @@ class RawNotice(BaseModel):
     url: HttpUrl
     posted_at: Optional[str] = None
     summary: Optional[str] = None
+    body: Optional[str] = None
     extra: dict = Field(default_factory=dict)
 
     def content_hash(self) -> str:
@@ -29,6 +30,7 @@ class StoredNotice(BaseModel):
     url: str
     posted_at: Optional[str] = None
     summary: Optional[str] = None
+    body: Optional[str] = None
     hash: str
     fetched_at: str
 

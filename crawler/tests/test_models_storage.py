@@ -52,9 +52,27 @@ def test_list_notices_orders_recent_first():
             assert rows[0].source_id == "snu_cse_notice"
 
 
+def test_insert_and_read_body():
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Path(tmp) / "test.db"
+        with storage.connect(db) as conn:
+            storage.insert_many(
+                conn,
+                [RawNotice(
+                    source_id="snu_cse_notice",
+                    title="본문 테스트",
+                    url="https://example.com/body",
+                    body="공지 본문 내용",
+                )],
+            )
+            rows = storage.list_notices(conn, limit=10)
+            assert rows[0].body == "공지 본문 내용"
+
+
 if __name__ == "__main__":
     test_content_hash_stable()
     test_content_hash_distinct_by_url()
     test_dedup_on_insert()
     test_list_notices_orders_recent_first()
+    test_insert_and_read_body()
     print("all tests passed")

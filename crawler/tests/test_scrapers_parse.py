@@ -176,6 +176,21 @@ def test_safe_href_filters_javascript_anchor():
     assert all("공유하기" not in t for t in titles)
 
 
+def test_extract_detail_body_for_school_notice_layouts():
+    html = """
+    <html><body>
+      <div class="board-view">
+        <p>장학금 신청 안내</p>
+        <p>신청 기한은 2026-06-01입니다.</p>
+      </div>
+    </body></html>
+    """
+    body = snu_cse_notice.extract_body_text(html, snu_cse_notice.BODY_SELECTORS)
+    assert body
+    assert "장학금 신청 안내" in body
+    assert "2026-06-01" in body
+
+
 if __name__ == "__main__":
     test_snu_cse_table_layout()
     test_snu_cba_basic()
@@ -185,4 +200,5 @@ if __name__ == "__main__":
     test_naver_cafe_payload_basic()
     test_naver_cafe_url_pattern_required()
     test_safe_href_filters_javascript_anchor()
+    test_extract_detail_body_for_school_notice_layouts()
     print("all parser tests passed")

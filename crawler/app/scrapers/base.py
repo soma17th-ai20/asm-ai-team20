@@ -38,6 +38,12 @@ def first_text(node: Tag | None) -> str:
     return " ".join(node.get_text(" ", strip=True).split())
 
 
+def compact_text(text: str | None) -> str:
+    if not text:
+        return ""
+    return " ".join(text.split())
+
+
 def safe_href(href: str | None, base_url: str) -> Optional[str]:
     """비 http(s) 링크(javascript:, mailto:, 빈 anchor)를 거른다."""
     if not href:
@@ -49,6 +55,16 @@ def safe_href(href: str | None, base_url: str) -> Optional[str]:
     if not full.startswith(("http://", "https://")):
         return None
     return full
+
+
+def extract_body_text(html: str, selectors: list[str]) -> Optional[str]:
+    soup = BeautifulSoup(html, "lxml")
+    for selector in selectors:
+        node = soup.select_one(selector)
+        text = compact_text(node.get_text("\n", strip=True) if node else "")
+        if text:
+            return text
+    return None
 
 
 def make_notice(
