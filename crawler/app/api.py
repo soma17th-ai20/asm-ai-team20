@@ -5,10 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from . import storage
-from .config import load_config
 from .models import CrawlReport, StoredNotice
-from .runner import crawl_all
+from .service import NoticeCrawlService, build_service
 
 router = APIRouter(prefix="/api", tags=["crawler"])
 
@@ -30,6 +28,10 @@ class CrawlResponse(BaseModel):
     reports: list[CrawlReport]
 
 
+def get_service() -> NoticeCrawlService:
+    return build_service()
+
+
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -37,10 +39,12 @@ def health() -> dict:
 
 @router.get("/sources", response_model=list[SiteOut])
 def list_sources() -> list[SiteOut]:
-    cfg = load_config()
+    # TEST-ONLY HTTP ADAPTER.
+    # 서버 통합 시 이 라우트는 삭제 가능하고, 대신 app.service.NoticeCrawlService를 직접 호출하면 된다.
+    service = get_service()
     return [
         SiteOut(id=s.id, name=s.name, url=s.url, category=s.category, enabled=s.enabled)
-        for s in cfg.sites
+        for s in service.list_sources()
     ]
 
 
@@ -50,19 +54,20 @@ def list_notices(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> NoticesOut:
-    with storage.connect() as conn:
-        items = storage.list_notices(conn, source_id=source, limit=limit, offset=offset)
-        total = storage.count(conn, source_id=source)
+    service = get_service()
+    items = service.list_notices(source_id=source, limit=limit, offset=offset)
+    total = service.count_notices(source_id=source)
     return NoticesOut(total=total, items=items)
 
 
 @router.post("/crawl", response_model=CrawlResponse)
 def trigger_crawl(source: Optional[str] = Query(default=None)) -> CrawlResponse:
-    cfg = load_config()
+    service = get_service()
+    cfg = service.config
     if source:
         try:
             cfg.site(source)
         except KeyError as e:
             raise HTTPException(status_code=404, detail=str(e))
-    reports = crawl_all(cfg, source)
+    reports = service.crawl_all(source)
     return CrawlResponse(reports=reports)

@@ -1,1 +1,1 @@
-__all__ = ["config", "models", "storage", "fetcher", "api", "main"]
+__all__ = ["config", "models", "storage", "fetcher", "service", "api", "main"]

@@ -6,14 +6,14 @@
 
 | 모듈                | 위치       | 스택                   | 역할                                                  |
 | ------------------- | ---------- | ---------------------- | ----------------------------------------------------- |
-| **crawler**         | `crawler/` | Python 3.10+ / FastAPI | 6개 사이트 크롤링·중복 제거·DB 저장·REST API          |
+| **crawler**         | `crawler/` | Python 3.10+ / FastAPI | 6개 사이트 크롤링·중복 제거·DB 저장·내부 서비스/REST API |
 | **frontend (demo)** | `src/`     | React 19 / Vite 8      | 크롤러 동작 검증용 최소 UI (실 서비스 UI는 별도 담당) |
 
 프론트와 크롤러는 **완전히 분리**되어 있고, 통신은 `/api/*` REST로만 한다. 다른 팀원의 백엔드/AI/스케줄러는 이 API에 그대로 붙는다.
 
 ## 현재 구현 상태
 
-- `crawler/`는 MVP 수집 레이어까지 구현되어 있다. 등록된 6개 사이트를 크롤링해 SQLite에 저장하고, FastAPI와 CLI로 조회/실행할 수 있다.
+- `crawler/`는 MVP 수집 레이어까지 구현되어 있다. 등록된 6개 사이트를 크롤링해 SQLite에 저장하고, 내부 서비스 계층과 FastAPI 어댑터로 조회/실행할 수 있다.
 - `src/`는 실서비스 UI가 아니라 크롤러 동작 확인용 데모 화면이다.
 - 개인화 매칭, 임베딩, LLM 판정, 알림 발송, 스케줄러 연동은 기획서 범위에 있으나 이 저장소에서는 아직 구현되지 않았다.
 - 학교 공지 계열(`snu_cse_notice`, `snu_cba_notice`)은 목록 메타데이터뿐 아니라 상세 페이지 본문도 함께 수집한다.
@@ -47,10 +47,7 @@ npm run dev
 
 ```bash
 cd crawler
-.venv/bin/python -m app.runner list-sites
-.venv/bin/python -m app.runner dry-run --source naver_recruit --limit 5   # DB 저장 X
-.venv/bin/python -m app.runner crawl                                       # 전체 + DB 저장
-.venv/bin/python -m app.runner crawl --source jobkorea_ai
+uvicorn app.main:app --reload --port 8000
 ```
 
 ## API
@@ -179,8 +176,8 @@ notices(
 ├── crawler/                       # 백엔드 — Python/FastAPI
 │   ├── config/sites.json          # 크롤 대상 단일 진실
 │   ├── app/
-│   │   ├── main.py · api.py       # FastAPI
-│   │   ├── runner.py              # CLI: list-sites · dry-run · crawl
+│   │   ├── main.py · api.py       # FastAPI 어댑터
+│   │   ├── service.py · ports.py  # 내부 인터페이스/서비스
 │   │   ├── config.py · models.py · storage.py · fetcher.py
 │   │   └── scrapers/              # 사이트별 파서 + 공통 베이스
 │   ├── tests/                     # 단위 테스트

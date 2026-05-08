@@ -5,6 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router
 
+# TEST-ONLY FastAPI ENTRYPOINT.
+# 서버 통합 시 이 파일은 삭제 가능하고, 대신 app.service.NoticeCrawlService를
+# 기존 백엔드 라우트나 잡 스케줄러에서 직접 호출하면 된다.
 app = FastAPI(
     title="학교 공지 AI 알림 — 스크래퍼 모듈",
     version="0.1.0",

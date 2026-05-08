@@ -107,3 +107,36 @@ def count(conn: sqlite3.Connection, source_id: Optional[str] = None) -> int:
     else:
         row = conn.execute("SELECT COUNT(*) AS c FROM notices").fetchone()
     return int(row["c"])
+
+
+def delete_all(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM notices")
+    conn.execute("DELETE FROM sqlite_sequence WHERE name = 'notices'")
+
+
+class SQLiteNoticeRepository:
+    """현재 테스트용 SQLite 구현체. 서버 통합 시 다른 DB 구현체로 교체 가능."""
+
+    def __init__(self, db_path: Path | str | None = None) -> None:
+        self.db_path = db_path
+
+    def insert_many(self, notices: list[RawNotice]) -> tuple[int, int]:
+        with connect(self.db_path) as conn:
+            return insert_many(conn, notices)
+
+    def list_notices(
+        self,
+        source_id: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[StoredNotice]:
+        with connect(self.db_path) as conn:
+            return list_notices(conn, source_id=source_id, limit=limit, offset=offset)
+
+    def count(self, source_id: Optional[str] = None) -> int:
+        with connect(self.db_path) as conn:
+            return count(conn, source_id=source_id)
+
+    def delete_all(self) -> None:
+        with connect(self.db_path) as conn:
+            delete_all(conn)
