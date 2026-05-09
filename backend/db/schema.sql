@@ -33,10 +33,16 @@ CREATE TABLE IF NOT EXISTS notice_embeddings (
 
 -- 3) 유저 — 이메일 1건 = 한 사람. 알림 수신 주체.
 CREATE TABLE IF NOT EXISTS users (
-    id          SERIAL      PRIMARY KEY,
-    email       TEXT        NOT NULL UNIQUE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                      SERIAL      PRIMARY KEY,
+    email                   TEXT        NOT NULL UNIQUE,
+    notification_frequency  TEXT        NOT NULL DEFAULT 'realtime'
+                                        CHECK (notification_frequency IN ('realtime','daily','weekly')),
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- 기존 DB에 컬럼 추가 (멱등). 새 컬럼이 이미 있으면 NOOP.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_frequency TEXT
+    NOT NULL DEFAULT 'realtime'
+    CHECK (notification_frequency IN ('realtime','daily','weekly'));
 
 -- 4) 유저 관심사 — 한 유저가 여러 관심사를 가질 수 있다.
 --    embedding은 인라인 (filter.py가 cosine으로 직접 매칭).
@@ -61,8 +67,12 @@ CREATE TABLE IF NOT EXISTS notifications (
     queued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     sent_at     TIMESTAMPTZ,
     status      TEXT        NOT NULL DEFAULT 'queued',
+    feedback    TEXT        CHECK (feedback IN ('like','dislike')),
     UNIQUE (user_id, notice_id)
 );
+-- 기존 DB에 feedback 컬럼 추가 (멱등).
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS feedback TEXT
+    CHECK (feedback IN ('like','dislike'));
 CREATE INDEX IF NOT EXISTS idx_notifications_user_queued
     ON notifications (user_id, queued_at DESC);
 

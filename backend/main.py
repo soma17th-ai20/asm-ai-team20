@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.agent import router as agent_router
+from api.notifications import router as notifications_router
 from api.users import router as users_router
 from crawler.app.api import router as crawler_router
 from db.connection import init_schema
@@ -31,8 +32,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:4173",
+        "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:4173",
     ],
@@ -43,6 +46,7 @@ app.add_middleware(
 app.include_router(crawler_router)
 app.include_router(users_router)
 app.include_router(agent_router)
+app.include_router(notifications_router)
 
 
 @app.on_event("startup")

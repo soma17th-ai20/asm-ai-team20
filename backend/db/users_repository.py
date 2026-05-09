@@ -113,3 +113,125 @@ class UserRepository:
         with session_scope() as s:
             row = s.execute(text("SELECT COUNT(*) AS c FROM users")).first()
         return int(row.c) if row else 0
+
+    def get_user(self, user_id: int) -> Optional[dict]:
+        with session_scope() as s:
+            row = s.execute(
+                text(
+                    """
+                    SELECT id, email, notification_frequency, created_at
+                    FROM users WHERE id = :uid
+                    """
+                ),
+                {"uid": user_id},
+            ).first()
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "email": row.email,
+            "notification_frequency": row.notification_frequency,
+            "created_at": row.created_at.isoformat(timespec="seconds"),
+        }
+
+    def update_settings(
+        self,
+        user_id: int,
+        email: Optional[str] = None,
+        notification_frequency: Optional[str] = None,
+    ) -> Optional[dict]:
+        """email/notification_frequency 부분 업데이트. 둘 다 None이면 NOOP."""
+        if email is None and notification_frequency is None:
+            return self.get_user(user_id)
+        if notification_frequency is not None and notification_frequency not in (
+            "realtime", "daily", "weekly",
+        ):
+            raise ValueError(f"invalid frequency: {notification_frequency!r}")
+
+        sets, params = [], {"uid": user_id}
+        if email is not None:
+            sets.append("email = :email")
+            params["email"] = email
+        if notification_frequency is not None:
+            sets.append("notification_frequency = :freq")
+            params["freq"] = notification_frequency
+
+        with session_scope() as s:
+            row = s.execute(
+                text(
+                    f"""
+                    UPDATE users SET {", ".join(sets)}
+                    WHERE id = :uid
+                    RETURNING id, email, notification_frequency, created_at
+                    """
+                ),
+                params,
+            ).first()
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "email": row.email,
+            "notification_frequency": row.notification_frequency,
+            "created_at": row.created_at.isoformat(timespec="seconds"),
+        }
+
+    def list_user_notifications(self, user_id: int, hours: int = 24 * 7) -> list[dict]:
+        with session_scope() as s:
+            rows = s.execute(
+                text(
+                    """
+                    SELECT nt.id          AS notification_id,
+                           n.id           AS notice_id,
+                           n.title        AS title,
+                           n.url          AS url,
+                           n.source_id    AS source_id,
+                           n.posted_at    AS posted_at,
+                           COALESCE(n.summary, LEFT(COALESCE(n.body, ''), 300)) AS summary,
+                           nt.queued_at   AS queued_at,
+                           nt.sent_at     AS sent_at,
+                           nt.status      AS status,
+                           nt.feedback    AS feedback
+                    FROM notifications nt
+                    JOIN notices n ON n.id = nt.notice_id
+                    WHERE nt.user_id = :uid
+                      AND nt.queued_at >= now() - (:hours || ' hours')::interval
+                    ORDER BY nt.queued_at DESC
+                    LIMIT 100
+                    """
+                ),
+                {"uid": user_id, "hours": hours},
+            ).fetchall()
+        return [
+            {
+                "notification_id": r.notification_id,
+                "notice_id": r.notice_id,
+                "title": r.title,
+                "url": r.url,
+                "source_id": r.source_id,
+                "posted_at": r.posted_at,
+                "summary": r.summary or "",
+                "queued_at": r.queued_at.isoformat(timespec="seconds") if r.queued_at else None,
+                "sent_at": r.sent_at.isoformat(timespec="seconds") if r.sent_at else None,
+                "status": r.status,
+                "feedback": r.feedback,
+            }
+            for r in rows
+        ]
+
+    def set_feedback(self, notification_id: int, feedback: Optional[str]) -> Optional[str]:
+        """notifications.feedback을 'like'/'dislike'/None으로 세팅."""
+        if feedback not in ("like", "dislike", None):
+            raise ValueError(f"invalid feedback: {feedback!r}")
+        with session_scope() as s:
+            row = s.execute(
+                text(
+                    """
+                    UPDATE notifications SET feedback = :fb
+                    WHERE id = :nid
+                    RETURNING feedback
+                    """
+                ),
+                {"nid": notification_id, "fb": feedback},
+            ).first()
+        return row.feedback if row else None
