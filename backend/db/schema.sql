@@ -76,7 +76,17 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS feedback TEXT
 CREATE INDEX IF NOT EXISTS idx_notifications_user_queued
     ON notifications (user_id, queued_at DESC);
 
--- 6) ANN 인덱스. 데이터가 충분히 쌓인 뒤(>10K rows) 의미있고,
+-- 6) Slack 연동 — slack_user_id를 우리 users.id에 1:1 매핑.
+--    /notice link <email> 슬래시 커맨드로 자기 자신을 등록.
+--    한 Slack 계정 ↔ 한 DB 유저 (PRIMARY KEY로 강제).
+CREATE TABLE IF NOT EXISTS slack_links (
+    slack_user_id  TEXT        PRIMARY KEY,
+    user_id        INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    linked_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_slack_links_user ON slack_links (user_id);
+
+-- 7) ANN 인덱스. 데이터가 충분히 쌓인 뒤(>10K rows) 의미있고,
 --    그 전에는 seq scan이 더 빠를 수 있어 주석 처리. 운영에서 ANALYZE 후 켠다.
 -- CREATE INDEX IF NOT EXISTS idx_notice_embeddings_ann
 --     ON notice_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);

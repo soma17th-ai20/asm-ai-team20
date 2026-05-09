@@ -28,6 +28,9 @@ class Settings(BaseSettings):
 
     DAILY_LIMIT_PER_USER: int = 5
 
+    # Slack — 슬래시 커맨드 서명 검증. 비어있으면 검증 스킵 (개발용).
+    SLACK_SIGNING_SECRET: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

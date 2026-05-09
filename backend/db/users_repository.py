@@ -219,6 +219,38 @@ class UserRepository:
             for r in rows
         ]
 
+    # ─── Slack 연동 ─────────────────────────────────────────────────
+
+    def get_user_id_by_slack(self, slack_user_id: str) -> Optional[int]:
+        with session_scope() as s:
+            row = s.execute(
+                text("SELECT user_id FROM slack_links WHERE slack_user_id = :sid"),
+                {"sid": slack_user_id},
+            ).first()
+        return int(row.user_id) if row else None
+
+    def link_slack(self, slack_user_id: str, email: str) -> Optional[int]:
+        """slack_user_id ↔ email 바인딩. email로 user를 찾아 매핑 upsert.
+        성공 시 user_id, email 미존재 시 None."""
+        with session_scope() as s:
+            user = s.execute(
+                text("SELECT id FROM users WHERE email = :email"),
+                {"email": email},
+            ).first()
+            if user is None:
+                return None
+            s.execute(
+                text(
+                    """
+                    INSERT INTO slack_links (slack_user_id, user_id)
+                    VALUES (:sid, :uid)
+                    ON CONFLICT (slack_user_id) DO UPDATE SET user_id = EXCLUDED.user_id
+                    """
+                ),
+                {"sid": slack_user_id, "uid": int(user.id)},
+            )
+            return int(user.id)
+
     def set_feedback(self, notification_id: int, feedback: Optional[str]) -> Optional[str]:
         """notifications.feedback을 'like'/'dislike'/None으로 세팅."""
         if feedback not in ("like", "dislike", None):
