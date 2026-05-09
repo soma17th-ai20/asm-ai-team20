@@ -5,3 +5,10 @@ beautifulsoup4>=4.12
 lxml>=5.2
 pydantic>=2.7
 python-dateutil>=2.9
+pydantic_settings>=2.5.0
+openai>=1.51.0
+pyyaml
+sqlalchemy>=2.0.35
+redis
+psycopg2-binary>=2.9.10
+apscheduler>=3.10.4
