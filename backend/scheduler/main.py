@@ -1,4 +1,12 @@
-"""크롤러를 주기적으로 트리거하는 스케줄러.
+"""풀 ingestion 파이프라인을 주기적으로 트리거하는 스케줄러.
+
+매 N분마다 service.ingestion.run_full_ingestion을 직접 호출한다 (HTTP 우회).
+한 사이클: crawl → embed → 매칭(cosine+LLM) → notifications INSERT → Redis rpush.
+
+HTTP가 아니라 로컬 import인 이유:
+  - 풀 파이프라인이 LLM 호출 포함 수 분 걸릴 수 있어 HTTP 타임아웃 위험
+  - /api/crawl(양현서)는 crawl-only contract 유지 (FE의 "지금 크롤링" 버튼 등)
+  - 별도 머신 분리가 필요해지면 그때 HTTP 워커로 바꿈
 
 run:
     python -m scheduler.main
@@ -8,7 +16,6 @@ from __future__ import annotations
 import logging
 import signal
 
-import httpx
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from config import settings
@@ -21,20 +28,22 @@ logger = logging.getLogger("scheduler")
 
 
 def trigger_crawl() -> None:
-    url = f"{settings.CRAWLER_API_URL.rstrip('/')}/api/crawl"
+    # import는 함수 안에서 — 스케줄러 부팅 시 DB/OpenAI 클라이언트 초기화를 미룸.
+    from service.ingestion import run_full_ingestion
+
     try:
-        r = httpx.post(url, timeout=120)
-        r.raise_for_status()
-    except httpx.HTTPError as e:
-        logger.error("crawl trigger failed: %s", e)
+        report = run_full_ingestion()
+    except Exception as e:  # noqa: BLE001 — 한 사이클 실패가 다음 사이클을 막지 않게
+        logger.exception("ingestion failed: %s", e)
         return
 
-    reports = r.json().get("reports", [])
-    total_inserted = sum(rp.get("inserted", 0) for rp in reports)
-    total_fetched = sum(rp.get("fetched", 0) for rp in reports)
+    total_fetched = sum(r.fetched for r in report.crawl_reports)
+    total_inserted = sum(r.inserted for r in report.crawl_reports)
+    total_errors = sum(len(r.errors) for r in report.crawl_reports)
     logger.info(
-        "crawl ok: sources=%d fetched=%d inserted=%d",
-        len(reports), total_fetched, total_inserted,
+        "ingestion ok: sources=%d fetched=%d inserted=%d embedded=%d errors=%d",
+        len(report.crawl_reports), total_fetched, total_inserted,
+        report.embedded, total_errors,
     )
 
 
@@ -50,8 +59,8 @@ def main() -> None:
         coalesce=True,
     )
     logger.info(
-        "scheduler started: every %d min → POST %s/api/crawl",
-        settings.CRAWL_INTERVAL_MINUTES, settings.CRAWLER_API_URL,
+        "scheduler started: every %d min → run_full_ingestion (crawl+embed+enqueue)",
+        settings.CRAWL_INTERVAL_MINUTES,
     )
 
     trigger_crawl()
