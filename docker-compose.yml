@@ -50,6 +50,11 @@ services:
       CHAT_MODEL: ${CHAT_MODEL:-gpt-4o}
       SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.55}
       LLM_THRESHOLD: ${LLM_THRESHOLD:-7}
+      # ai_agent (Upstage solar-pro2) — 비어 있으면 fallback 룰 파서 사용.
+      SECRET_KEY: ${SECRET_KEY:-}
+      UPSTAGE_MODEL: ${UPSTAGE_MODEL:-solar-pro2}
+      UPSTAGE_CHAT_COMPLETIONS_URL: ${UPSTAGE_CHAT_COMPLETIONS_URL:-https://api.upstage.ai/v1/solar/chat/completions}
+      UPSTAGE_TIMEOUT_SECONDS: ${UPSTAGE_TIMEOUT_SECONDS:-20}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:

@@ -241,6 +241,7 @@ user_interests(
 │   │   └── ingestion.py           # 크롤 → 임베딩 → 저장 파이프라인
 │   ├── api/
 │   │   └── users.py               # POST/GET /api/users 라우터
+│   ├── ai_agent/                  # Upstage solar-pro2 자연어→함수호출 (feat/ai-agent에서 이관)
 │   ├── main.py                    # uvicorn main:app — 통합 FastAPI 엔트리
 │   ├── cli.py                     # python -m cli {init|crawl|embed|ingest}
 │   ├── config.py · prompts.{py,yml}
@@ -266,7 +267,7 @@ cd backend/crawler
 | 양현서 | 스크래퍼      | `backend/crawler/`                                              |
 | 김승원 | 프론트엔드    | 추후 `src/`에 실 UI 구현 (현재는 데모만)                        |
 | 서성민 | 백엔드/DB     | **`backend/db/`, `backend/service/ingestion.py`** ← 본 작업     |
-| 권기혁 | AI 파이프라인 | `backend/service/embedding.py · llm_judge.py · filter.py`       |
+| 권기혁 | AI 파이프라인 | `backend/service/embedding.py · llm_judge.py · filter.py` + `backend/ai_agent/` (Upstage 에이전트) |
 | 이주호 | 스케줄러+알림 | Celery Beat에서 `service.ingestion.run_full_ingestion` 30분 주기 |
 | 박현병 | 코치          | —                                                               |
 

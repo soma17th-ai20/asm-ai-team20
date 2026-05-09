@@ -8,6 +8,7 @@
 | 임베딩 / LLM 판정 / Redis 매칭 | `service/` | feat/embedding에서 가져옴 — `filter.py`는 분리 스키마에 맞게 수정 |
 | DB | `db/` | **본 브랜치에서 신규**. PostgreSQL + pgvector. |
 | HTTP 라우터 | `api/`, `main.py` | **본 브랜치에서 신규**. 크롤러 라우터 + 유저 등록 라우터를 한 앱으로 묶는다. |
+| AI 에이전트 | `ai_agent/` | feat/ai-agent에서 가져옴. Upstage solar-pro2로 자연어 → 함수 호출 계획 변환. `SECRET_KEY` 미설정 시 룰 기반 fallback. |
 
 ## 스키마
 
@@ -116,6 +117,23 @@ service.filter.push_notice_to_redis_queue(db, notice_id)
    ├─ service.llm_judge.judge()        # 정밀 판정
    └─ Redis "notification_queue" rpush  {user_id, notice_id}
 ```
+
+## AI 에이전트 (`ai_agent/`)
+
+Upstage solar-pro2를 호출해 자연어를 함수 호출 계획 JSON으로 바꾸는 모듈. `SECRET_KEY`가 설정되어 있지 않으면 자동으로 룰 기반 fallback 파서를 쓴다.
+
+```bash
+# Docker (env에 SECRET_KEY가 들어가 있음)
+docker compose exec backend python -m ai_agent.main "장학금 키워드 추가해줘"
+
+# 로컬 (backend/.env에 SECRET_KEY 설정)
+cd backend && python -m ai_agent.main "최근 하루 동안 스크랩된 공지 보여줘"
+
+# LLM 호출 없이 fallback만
+python -m ai_agent.main "인턴 키워드 삭제해줘" --no-llm
+```
+
+지원 함수: `get_interest_keywords`, `create_interest_keyword`, `delete_interest_keyword`, `get_recent_interest_notices`. 현재는 `dispatcher`가 dummy 함수로 응답 — 실제 DB 연결은 권기혁 영역.
 
 ## 통합 인터페이스 (다른 팀원용)
 
