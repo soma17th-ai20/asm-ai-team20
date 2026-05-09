@@ -11,3 +11,4 @@ pyyaml
 sqlalchemy>=2.0.35
 redis
 psycopg2-binary>=2.9.10
+apscheduler>=3.10.4
