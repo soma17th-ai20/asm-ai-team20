@@ -21,31 +21,42 @@
 
 ## 빠른 시작
 
+### A. Docker만으로 (권장)
+
 ```bash
-# 1) Postgres + Redis 띄우기 (루트에서)
-cp backend/.env.example backend/.env   # OPENAI_API_KEY 채워두기
-docker compose up -d                   # postgres(5432) + redis(6379)
-
-# 2) Python 환경
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 3) 스키마 부트스트랩 (docker가 init할 때 이미 한 번 실행되지만 멱등)
-python -m cli init
-
-# 4) 크롤 + 임베딩 풀 파이프라인
-python -m cli ingest
-
-# 단계별
-python -m cli crawl --source snu_cse_notice
-python -m cli embed
-
-# 5) HTTP 서버 (크롤러 API + 유저 등록 API)
-uvicorn main:app --reload --port 8000
-# Swagger UI: http://localhost:8000/docs
+cd ..                      # 프로젝트 루트
+cp .env.example .env       # OPENAI_API_KEY 채우기
+docker compose up -d --build
+# postgres + redis + backend 모두 한 번에. backend는 자동 스키마 init + uvicorn --reload.
 ```
+
+자주 쓰는 컨테이너 명령:
+
+```bash
+docker compose exec backend python -m cli ingest               # 크롤+임베딩
+docker compose exec backend python -m cli crawl --source snu_cse_notice
+docker compose exec backend python -m cli embed
+docker compose exec postgres psql -U team20 -c '\dt'           # 테이블 확인
+docker compose logs -f backend                                 # 로그
+docker compose down                                            # 정지
+docker compose down -v                                         # 정지 + 볼륨 초기화
+```
+
+### B. 로컬 Python (인프라만 docker)
+
+```bash
+docker compose up -d postgres redis
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env       # backend 단독 실행용 — OPENAI_API_KEY 채우기
+
+python -m cli init         # 스키마(멱등)
+python -m cli ingest       # 크롤+임베딩
+uvicorn main:app --reload --port 8000
+```
+
+API: <http://localhost:8000/docs>
 
 ## HTTP 엔드포인트
 

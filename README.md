@@ -23,28 +23,36 @@
 
 ## 빠른 시작
 
-### 1) DB·Redis (한 방 부트스트랩)
+### Docker로 한 번에 띄우기 (권장)
 
 ```bash
-cp backend/.env.example backend/.env   # OPENAI_API_KEY 채우기
-docker compose up -d                   # postgres(5432, pgvector) + redis(6379)
+cp .env.example .env          # OPENAI_API_KEY 채우기
+docker compose up -d --build  # postgres(pgvector) + redis + backend 한 번에
 ```
 
-스키마는 컨테이너 시작 시 `backend/db/schema.sql`이 자동으로 적용된다.
+세 컨테이너가 떠 있으면 곧바로:
 
-### 2) 백엔드 (Python)
+- API: <http://localhost:8000>
+- Swagger UI: <http://localhost:8000/docs>
+- Postgres: localhost:5432 (user/db = team20)
+
+크롤 트리거 / 임베딩은 컨테이너 안에서 한 줄로:
 
 ```bash
+docker compose exec backend python -m cli ingest
+```
+
+### 로컬에서 띄우기 (Docker 없이)
+
+```bash
+docker compose up -d postgres redis    # 인프라만 컨테이너로
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-python -m cli init      # 스키마(멱등 재적용) 확인
-python -m cli ingest    # 6개 사이트 크롤 → 신규 공지 임베딩 → Postgres 저장
+cp .env.example .env                   # OPENAI_API_KEY 채우기
+python -m cli ingest                   # 크롤+임베딩
+uvicorn main:app --reload --port 8000  # API 서버
 ```
-
-크롤러 단독 FastAPI는 `uvicorn crawler.app.main:app --reload --port 8000`.
 
 확인: <http://localhost:8000/api/health> → `{"status":"ok"}`
 Swagger UI: <http://localhost:8000/docs>
