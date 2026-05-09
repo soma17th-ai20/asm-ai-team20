@@ -2,6 +2,15 @@ docs/*
 .omc/*
 .claude/*
 
+# 시크릿 — docker compose가 읽는 루트 .env
+.env
+
+# Python (백엔드 venv가 루트에서 보일 수 있음)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
 # Created by https://www.toptal.com/developers/gitignore/api/react
 # Edit at https://www.toptal.com/developers/gitignore?templates=react
 

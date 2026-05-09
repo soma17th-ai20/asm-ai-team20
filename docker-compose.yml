@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: team20-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-team20}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-team20pw}
+      POSTGRES_DB: ${POSTGRES_DB:-team20}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-team20} -d ${POSTGRES_DB:-team20}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: team20-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: team20-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 컨테이너 안에서는 서비스 이름이 호스트.
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-team20}:${POSTGRES_PASSWORD:-team20pw}@postgres:5432/${POSTGRES_DB:-team20}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o}
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.55}
+      LLM_THRESHOLD: ${LLM_THRESHOLD:-7}
+      # ai_agent (Upstage solar-pro2) — 비어 있으면 fallback 룰 파서 사용.
+      SECRET_KEY: ${SECRET_KEY:-}
+      UPSTAGE_MODEL: ${UPSTAGE_MODEL:-solar-pro2}
+      UPSTAGE_CHAT_COMPLETIONS_URL: ${UPSTAGE_CHAT_COMPLETIONS_URL:-https://api.upstage.ai/v1/solar/chat/completions}
+      UPSTAGE_TIMEOUT_SECONDS: ${UPSTAGE_TIMEOUT_SECONDS:-20}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # dev 모드 핫리로드용. 운영 빌드에서는 이 줄 주석.
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

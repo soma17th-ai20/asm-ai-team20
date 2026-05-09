@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.omc/
+crawler/data/*.db
+crawler/data/*.db-journal
+crawler/.omc/
+.git/
