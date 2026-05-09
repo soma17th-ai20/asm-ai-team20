@@ -18,6 +18,7 @@
 - `notice_embeddings` — `notice_id` PK FK → `notices.id`. 1:1. 모델 교체 추적용 `model TEXT`. 미임베딩 공지는 `LEFT JOIN ... WHERE ne.notice_id IS NULL`로 즉시 식별.
 - `users` — `email UNIQUE`. 알림 수신 주체.
 - `user_interests` — `user_id FK`, `interest_text`, `embedding vector(1536)`. 한 유저에 여러 관심사 가능. `(user_id, interest_text)` UNIQUE로 멱등.
+- `notifications` — `(user_id, notice_id) UNIQUE`. `filter.py`가 매칭 통과 시 `queued`로 INSERT. 추후 notifier worker가 발송 후 `sent_at` + `status` 업데이트.
 - pgvector ANN 인덱스(`ivfflat`)는 row가 충분히 쌓이면 켠다. 현재는 주석.
 
 ## 빠른 시작
@@ -66,9 +67,51 @@ API: <http://localhost:8000/docs>
 | GET | `/api/health` | 헬스체크 |
 | GET | `/api/sources` | 크롤 대상 목록 |
 | GET | `/api/notices` | 저장된 공지 페이지네이션 |
-| POST | `/api/crawl` | 즉시 크롤 트리거 (스케줄러용) |
+| POST | `/api/crawl` | 즉시 크롤 트리거 (스케줄러용 + 5번째 기능 "지금 크롤링" 버튼) |
 | **POST** | **`/api/users`** | **유저 등록 — 프론트가 보낸 `{email, interest_text}`를 임베딩해서 DB 저장** |
 | GET | `/api/users` | 등록된 유저 + 관심사 목록 |
+| **POST** | **`/api/agent`** | **자연어 프롬프트 → ai_agent로 의도 해석 → 실 DB 함수 dispatch** |
+
+### 에이전트 워크플로우 (5개 기능)
+
+| # | 기능 | 라우팅 | 처리 함수 |
+| - | --- | --- | --- |
+| 1 | n일 전부터 알림 리스트 | `POST /api/agent` (LLM) | `db.agent_repo.get_recent_interest_notices(user_id, hours)` ← `notifications ⨝ notices` |
+| 2 | 키워드 추가 | `POST /api/agent` (LLM) | `db.agent_repo.create_interest_keyword(user_id, keyword)` ← embed + INSERT user_interests |
+| 3 | 키워드 삭제 | `POST /api/agent` (LLM) | `db.agent_repo.delete_interest_keyword(user_id, keyword)` |
+| 4 | 키워드 조회 | `POST /api/agent` (LLM) | `db.agent_repo.get_interest_keywords(user_id)` |
+| 5 | 지금 크롤링 | `POST /api/crawl` (직접 호출, ai_agent 우회) | `crawler.app.service.NoticeCrawlService.crawl_all()` |
+
+5번이 ai_agent 우회 이유: 현재 ai_agent의 system prompt + fallback이 4개 함수만 알고 있기 때문. ai_agent를 수정하지 않는 방침이라 프론트가 별도 버튼으로 직접 호출.
+
+### `POST /api/agent` 예시
+
+```bash
+curl -X POST http://localhost:8000/api/agent \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id": 1, "prompt": "장학금 키워드 추가해줘"}'
+```
+
+응답:
+
+```json
+{
+  "prompt": "장학금 키워드 추가해줘",
+  "planner": "upstage",
+  "plan": {
+    "should_call_function": true,
+    "calls": [{"function_name": "create_interest_keyword", "arguments": {"keyword": "장학금"}}],
+    "message": "관심사 키워드 등록 요청으로 해석했습니다."
+  },
+  "results": [
+    {"ok": true, "function_name": "create_interest_keyword",
+     "arguments": {"user_id": 1, "keyword": "장학금"},
+     "data": {"keyword": "장학금", "interest_id": 7, "duplicate": false}}
+  ]
+}
+```
+
+`SECRET_KEY` 미설정이거나 LLM 실패 시 `planner`가 `fallback`으로 떨어지고 룰 기반 파서가 동일 형식의 plan을 만든다. `use_llm=false`로 강제 가능.
 
 `POST /api/users` 예시:
 

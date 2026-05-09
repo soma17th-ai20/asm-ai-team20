@@ -61,6 +61,22 @@ def push_notice_to_redis_queue(db: Session, notice_id: int) -> None:
         is_relevant = judge(user.interest_text, notice.title, notice.content)
 
         if is_relevant:
+            # 1) 알림 로그에 'queued' row 멱등 INSERT — notifier worker(이주호 영역)가
+            #    이메일 발송 후 sent_at + status를 업데이트할 자리.
+            db.execute(
+                text(
+                    """
+                    INSERT INTO notifications (user_id, notice_id, status)
+                    VALUES (:uid, :nid, 'queued')
+                    ON CONFLICT (user_id, notice_id) DO NOTHING
+                    """
+                ),
+                {"uid": user.user_id, "nid": notice_id},
+            )
+
+            # 2) Redis 큐로도 push.
             queue_data = {"user_id": user.user_id, "notice_id": notice_id}
             redis_client.rpush("notification_queue", json.dumps(queue_data))
             logger.info("Successfully queued: User %s for Notice %s", user.user_id, notice_id)
+
+    db.commit()

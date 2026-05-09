@@ -12,6 +12,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.agent import router as agent_router
 from api.users import router as users_router
 from crawler.app.api import router as crawler_router
 from db.connection import init_schema
@@ -41,6 +42,7 @@ app.add_middleware(
 
 app.include_router(crawler_router)
 app.include_router(users_router)
+app.include_router(agent_router)
 
 
 @app.on_event("startup")
@@ -59,5 +61,6 @@ def root() -> dict:
             "/api/notices",
             "/api/crawl",
             "/api/users",
+            "/api/agent",
         ],
     }

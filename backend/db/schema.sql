@@ -51,7 +51,22 @@ CREATE TABLE IF NOT EXISTS user_interests (
 );
 CREATE INDEX IF NOT EXISTS idx_user_interests_user ON user_interests (user_id);
 
--- 5) ANN 인덱스. 데이터가 충분히 쌓인 뒤(>10K rows) 의미있고,
+-- 5) 알림 로그 — filter.py가 Redis 큐에 push할 때 같이 INSERT.
+--    notifier worker(이주호 영역)가 이메일 발송 후 sent_at + status 업데이트 예정.
+--    한 (user, notice) 쌍은 한 번만 알림.
+CREATE TABLE IF NOT EXISTS notifications (
+    id          BIGSERIAL   PRIMARY KEY,
+    user_id     INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    notice_id   BIGINT      NOT NULL REFERENCES notices(id) ON DELETE CASCADE,
+    queued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    sent_at     TIMESTAMPTZ,
+    status      TEXT        NOT NULL DEFAULT 'queued',
+    UNIQUE (user_id, notice_id)
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_queued
+    ON notifications (user_id, queued_at DESC);
+
+-- 6) ANN 인덱스. 데이터가 충분히 쌓인 뒤(>10K rows) 의미있고,
 --    그 전에는 seq scan이 더 빠를 수 있어 주석 처리. 운영에서 ANALYZE 후 켠다.
 -- CREATE INDEX IF NOT EXISTS idx_notice_embeddings_ann
 --     ON notice_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
