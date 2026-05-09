@@ -18,9 +18,10 @@ from crawler.app.config import load_config
 from crawler.app.models import CrawlReport, StoredNotice
 from crawler.app.service import NoticeCrawlService
 
-from db.connection import init_schema
+from db.connection import init_schema, session_scope
 from db.repository import PostgresNoticeRepository
 from service.embedding import embed_texts
+from service.filter import push_notice_to_redis_queue
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,17 @@ def embed_pending(
         items = [(n.id, vec, model) for n, vec in zip(chunk, vectors)]
         total_saved += repo.save_embeddings(items)
         logger.info("embedded %d notices (model=%s)", len(items), model)
+
+        # ETL 글루: 임베딩 저장 직후 매칭 + Redis 큐 적재까지 한 번에.
+        # 권기혁 service.filter가 cosine 1차 + LLM 2차로 알림 대상 유저를 골라
+        # notifications 테이블 INSERT + Redis rpush 까지 처리한다.
+        # 각 공지가 독립적이라 한 건 실패해도 다음 건은 계속 진행한다.
+        for n, _ in zip(chunk, vectors):
+            try:
+                with session_scope() as s:
+                    push_notice_to_redis_queue(s, n.id)
+            except Exception as e:  # noqa: BLE001 — 매칭 실패가 임베딩 결과를 깨면 안 됨
+                logger.warning("enqueue failed for notice_id=%s: %s", n.id, e)
     return total_saved
 
 
