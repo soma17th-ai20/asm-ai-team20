@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: team20-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-team20}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-team20pw}
+      POSTGRES_DB: ${POSTGRES_DB:-team20}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-team20} -d ${POSTGRES_DB:-team20}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: team20-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+volumes:
+  postgres_data:

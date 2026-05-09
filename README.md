@@ -4,36 +4,52 @@
 
 ## 구성
 
-| 모듈                | 위치       | 스택                   | 역할                                                  |
-| ------------------- | ---------- | ---------------------- | ----------------------------------------------------- |
-| **crawler**         | `crawler/` | Python 3.10+ / FastAPI | 6개 사이트 크롤링·중복 제거·DB 저장·내부 서비스/REST API |
-| **frontend (demo)** | `src/`     | React 19 / Vite 8      | 크롤러 동작 검증용 최소 UI (실 서비스 UI는 별도 담당) |
+| 모듈                | 위치               | 스택                                | 역할                                                  |
+| ------------------- | ------------------ | ----------------------------------- | ----------------------------------------------------- |
+| **backend**         | `backend/`         | Python 3.10+ / FastAPI / SQLAlchemy | 크롤러 + 임베딩 + LLM 판정 + DB(PostgreSQL+pgvector)  |
+| **crawler**         | `backend/crawler/` | Python                              | 6개 사이트 크롤링·중복 제거 (backend가 내부 호출)      |
+| **frontend (demo)** | `src/`             | React 19 / Vite 8                   | 크롤러 동작 검증용 최소 UI (실 서비스 UI는 별도 담당) |
+| **인프라**          | `docker-compose.yml` | PostgreSQL+pgvector / Redis       | 로컬 개발용 한 방 부트스트랩                           |
 
-프론트와 크롤러는 **완전히 분리**되어 있고, 통신은 `/api/*` REST로만 한다. 다른 팀원의 백엔드/AI/스케줄러는 이 API에 그대로 붙는다.
+프론트와 백엔드는 **완전히 분리**되어 있고, 통신은 `/api/*` REST로만 한다. 다른 팀원의 백엔드/AI/스케줄러는 이 API에 그대로 붙는다.
 
 ## 현재 구현 상태
 
-- `crawler/`는 MVP 수집 레이어까지 구현되어 있다. 등록된 6개 사이트를 크롤링해 SQLite에 저장하고, 내부 서비스 계층과 FastAPI 어댑터로 조회/실행할 수 있다.
+- `backend/crawler/`는 MVP 수집 레이어까지 구현되어 있다. 등록된 6개 사이트를 크롤링하고, FastAPI 어댑터로 조회/실행할 수 있다.
+- `backend/db/`에 PostgreSQL+pgvector 스키마와 `PostgresNoticeRepository`가 있어, 크롤러는 이 리포지토리를 통해 Postgres에 적재한다.
+- `backend/service/`에 임베딩(OpenAI)·LLM 판정·Redis 매칭 코드가 있다. `service/ingestion.py`가 *크롤 → 임베딩 → 저장* 파이프라인을 한 번에 돌린다.
 - `src/`는 실서비스 UI가 아니라 크롤러 동작 확인용 데모 화면이다.
-- 개인화 매칭, 임베딩, LLM 판정, 알림 발송, 스케줄러 연동은 기획서 범위에 있으나 이 저장소에서는 아직 구현되지 않았다.
-- 학교 공지 계열(`snu_cse_notice`, `snu_cba_notice`)은 목록 메타데이터뿐 아니라 상세 페이지 본문도 함께 수집한다.
+- 알림 발송과 스케줄러 연동은 다른 팀원이 이 백엔드의 함수를 import해서 붙이도록 설계되어 있다.
 
 ## 빠른 시작
 
-### 1) 백엔드 (크롤러 API)
+### 1) DB·Redis (한 방 부트스트랩)
 
 ```bash
-cd crawler
+cp backend/.env.example backend/.env   # OPENAI_API_KEY 채우기
+docker compose up -d                   # postgres(5432, pgvector) + redis(6379)
+```
+
+스키마는 컨테이너 시작 시 `backend/db/schema.sql`이 자동으로 적용된다.
+
+### 2) 백엔드 (Python)
+
+```bash
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+
+python -m cli init      # 스키마(멱등 재적용) 확인
+python -m cli ingest    # 6개 사이트 크롤 → 신규 공지 임베딩 → Postgres 저장
 ```
+
+크롤러 단독 FastAPI는 `uvicorn crawler.app.main:app --reload --port 8000`.
 
 확인: <http://localhost:8000/api/health> → `{"status":"ok"}`
 Swagger UI: <http://localhost:8000/docs>
 
-### 2) 프론트 (데모)
+### 3) 프론트 (데모)
 
 ```bash
 npm install
@@ -42,13 +58,6 @@ npm run dev
 
 브라우저: <http://localhost:5173>
 백엔드 주소를 바꾸려면 `VITE_CRAWLER_API` 환경변수.
-
-### 3) CLI로만 크롤할 때 (서버 없이)
-
-```bash
-cd crawler
-uvicorn app.main:app --reload --port 8000
-```
 
 ## API
 
@@ -138,7 +147,7 @@ uvicorn app.main:app --reload --port 8000
 
 `fetched`는 파서가 잡아낸 건수, `inserted`는 신규 저장 건수, `duplicates`는 hash 충돌로 거른 건수. `errors`가 비어있지 않으면 사이트 구조 변경 또는 봇 차단 의심.
 
-## 등록된 사이트 (`crawler/config/sites.json`)
+## 등록된 사이트 (`backend/crawler/config/sites.json`)
 
 | id               | URL                                                              | 비고                                       |
 | ---------------- | ---------------------------------------------------------------- | ------------------------------------------ |
@@ -149,41 +158,87 @@ uvicorn app.main:app --reload --port 8000
 | `jobkorea_ai`    | https://www.jobkorea.co.kr/recruit/ai-jobs?pageNo=1&pageSize=100 | AJAX JSON+embedded HTML (`GetRecruitList`) |
 | `naver_cafe_notice` | https://cafe.naver.com/f-e/cafes/31723403/menus/2             | 공식 SPA의 공개 ArticleList AJAX (`apis.naver.com`) |
 
-사이트 추가는 `sites.json`에 한 줄 + `crawler/app/scrapers/<id>.py` 한 개 + `crawler/app/scrapers/__init__.py` 레지스트리에 한 줄.
+사이트 추가는 `sites.json`에 한 줄 + `backend/crawler/app/scrapers/<id>.py` 한 개 + `backend/crawler/app/scrapers/__init__.py` 레지스트리에 한 줄.
 
-## 데이터 모델
+## 데이터 모델 (PostgreSQL + pgvector)
 
-```
+스키마 단일 진실: `backend/db/schema.sql`. 컨테이너 첫 부팅 시 자동 적용.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 크롤러 적재 — 메타데이터 only
 notices(
-  id          INTEGER PK,
+  id          BIGSERIAL PK,
   source_id   TEXT,
   title       TEXT,
   url         TEXT,
   posted_at   TEXT?,
   summary     TEXT?,
   body        TEXT?,
-  hash        TEXT UNIQUE,    -- SHA-256(source_id | url | title)
-  fetched_at  TEXT
+  hash        TEXT UNIQUE,        -- SHA-256(source_id | url | title)
+  fetched_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ
+)
+
+-- 임베딩은 분리 테이블 (1:1). 모델 교체/재임베딩이 깔끔.
+notice_embeddings(
+  notice_id   BIGINT PK FK→notices.id ON DELETE CASCADE,
+  embedding   vector(1536),
+  model       TEXT,
+  created_at  TIMESTAMPTZ
+)
+
+-- 유저 — 이메일 1건 = 한 사람
+users(
+  id          SERIAL PK,
+  email       TEXT UNIQUE,
+  created_at  TIMESTAMPTZ
+)
+
+-- 유저 관심사 — 한 유저가 여러 관심사 가질 수 있음. embedding 인라인.
+user_interests(
+  id            SERIAL PK,
+  user_id       INT FK→users.id ON DELETE CASCADE,
+  interest_text TEXT,
+  embedding     vector(1536),
+  created_at    TIMESTAMPTZ,
+  UNIQUE (user_id, interest_text)
 )
 ```
 
-기본 SQLite (`crawler/data/notices.db`). Postgres+pgvector로 옮길 때는 `crawler/app/storage.py`만 교체하면 된다.
+프론트엔드는 `POST /api/users` 로 `{email, interest_text}`를 보내면 백엔드가 임베딩 후 위 두 테이블에 적재한다.
+
+크롤러는 `backend/db/repository.PostgresNoticeRepository`를 통해 적재한다. SQLite 구현체(`backend/crawler/app/storage.py`)는 단위 테스트용으로 유지.
 
 ## 디렉토리
 
 ```
 .
-├── crawler/                       # 백엔드 — Python/FastAPI
-│   ├── config/sites.json          # 크롤 대상 단일 진실
-│   ├── app/
-│   │   ├── main.py · api.py       # FastAPI 어댑터
-│   │   ├── service.py · ports.py  # 내부 인터페이스/서비스
-│   │   ├── config.py · models.py · storage.py · fetcher.py
-│   │   └── scrapers/              # 사이트별 파서 + 공통 베이스
-│   ├── tests/                     # 단위 테스트
-│   ├── data/                      # SQLite (gitignore)
+├── docker-compose.yml             # postgres(pgvector) + redis
+├── backend/
+│   ├── crawler/                   # 크롤러 모듈 (feat/crawler에서 이관)
+│   │   ├── config/sites.json
+│   │   ├── app/                   # main · api · service · scrapers …
+│   │   └── tests/
+│   ├── db/
+│   │   ├── schema.sql             # PostgreSQL + pgvector 스키마
+│   │   ├── connection.py          # SQLAlchemy 엔진/세션
+│   │   ├── repository.py          # PostgresNoticeRepository
+│   │   └── users_repository.py    # UserRepository (email + interest 등록)
+│   ├── service/
+│   │   ├── embedding.py           # OpenAI 임베딩
+│   │   ├── llm_judge.py           # GPT-4o 판정
+│   │   ├── filter.py              # 유저 매칭 + Redis 큐 적재
+│   │   └── ingestion.py           # 크롤 → 임베딩 → 저장 파이프라인
+│   ├── api/
+│   │   └── users.py               # POST/GET /api/users 라우터
+│   ├── main.py                    # uvicorn main:app — 통합 FastAPI 엔트리
+│   ├── cli.py                     # python -m cli {init|crawl|embed|ingest}
+│   ├── config.py · prompts.{py,yml}
 │   ├── requirements.txt
-│   └── README.md                  # 모듈 상세 + 통합 가이드
+│   ├── .env.example
+│   └── README.md                  # 백엔드 상세 + 통합 가이드
 ├── src/                           # 프론트 — React 데모
 └── docs/프로젝트기획서_20팀_학교공지AI알림서비스.md
 ```
@@ -191,20 +246,20 @@ notices(
 ## 테스트
 
 ```bash
-cd crawler
+cd backend/crawler
 .venv/bin/python tests/test_models_storage.py     # storage·dedup
 .venv/bin/python tests/test_scrapers_parse.py     # 6개 파서 + URL 가드
 ```
 
 ## 팀 분담 (기획서 §6)
 
-| 담당   | 역할          | 이 저장소에서                                    |
-| ------ | ------------- | ------------------------------------------------ |
-| 양현서 | 스크래퍼      | **`crawler/`** ← 본 모듈                         |
-| 김승원 | 프론트엔드    | 추후 `src/`에 실 UI 구현 (현재는 데모만)         |
-| 서성민 | 백엔드 API    | `/api/notices`를 호출하거나 공유 DB로 통합       |
-| 권기혁 | AI 파이프라인 | `RawNotice` Pydantic 모델 import → 임베딩 입력   |
-| 이주호 | 스케줄러+알림 | Celery Beat에서 `POST /api/crawl` 30분 주기 호출 |
-| 박현병 | 코치          | —                                                |
+| 담당   | 역할          | 이 저장소에서                                                   |
+| ------ | ------------- | --------------------------------------------------------------- |
+| 양현서 | 스크래퍼      | `backend/crawler/`                                              |
+| 김승원 | 프론트엔드    | 추후 `src/`에 실 UI 구현 (현재는 데모만)                        |
+| 서성민 | 백엔드/DB     | **`backend/db/`, `backend/service/ingestion.py`** ← 본 작업     |
+| 권기혁 | AI 파이프라인 | `backend/service/embedding.py · llm_judge.py · filter.py`       |
+| 이주호 | 스케줄러+알림 | Celery Beat에서 `service.ingestion.run_full_ingestion` 30분 주기 |
+| 박현병 | 코치          | —                                                               |
 
-자세한 통합 포인트는 `crawler/README.md` 참조.
+자세한 통합 포인트는 `backend/README.md` 참조.
