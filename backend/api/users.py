@@ -40,6 +40,18 @@ class UserListOut(BaseModel):
     items: list[UserListItem]
 
 
+class LoginIn(BaseModel):
+    email: EmailStr
+
+
+class LoginOut(BaseModel):
+    user_id: int
+    email: EmailStr
+    notification_frequency: Literal["realtime", "daily", "weekly"]
+    interest_count: int
+    created_at: str
+
+
 class InterestIn(BaseModel):
     interest_text: str = Field(min_length=1, max_length=200)
 
@@ -108,6 +120,35 @@ def register_user(payload: UserRegisterIn) -> UserRegisterOut:
         interest_id=result.interest_id,
         created_user=result.created_user,
         duplicate_interest=result.interest_id is None,
+    )
+
+
+@router.post("/login", response_model=LoginOut)
+def login(payload: LoginIn) -> LoginOut:
+    """이메일로 사용자 식별. 없으면 404. (비밀번호 없는 식별만 — 알림 수신용 식별 한정)"""
+    from sqlalchemy import text as _text
+
+    from db.connection import session_scope
+
+    with session_scope() as s:
+        row = s.execute(
+            _text(
+                """
+                SELECT u.id, u.email, u.notification_frequency, u.created_at,
+                       (SELECT COUNT(*) FROM user_interests ui WHERE ui.user_id = u.id) AS ic
+                FROM users u WHERE u.email = :email
+                """
+            ),
+            {"email": payload.email},
+        ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"등록되지 않은 이메일: {payload.email}")
+    return LoginOut(
+        user_id=row.id,
+        email=row.email,
+        notification_frequency=row.notification_frequency,
+        interest_count=int(row.ic),
+        created_at=row.created_at.isoformat(timespec="seconds"),
     )
 
 
