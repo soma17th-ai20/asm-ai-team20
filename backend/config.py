@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     openai_api_key: str
-    similarity_threshold: float = 0.55
+    similarity_threshold: float = 0.40
     llm_threshold: int = 7
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     CHAT_MODEL: str = "gpt-4o"
