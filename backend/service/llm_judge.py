@@ -63,3 +63,29 @@ def judge(interest_text: str, title: str, content: str) -> Optional[dict]:
             time.sleep(RETRY_DELAY)
 
     return None
+
+
+def extract_keyword(text: str) -> str:
+    """자연어 문장에서 관심 키워드를 추출한다. 실패 시 원본 text 반환."""
+    try:
+        response = _openai_client.chat.completions.create(
+            model=settings.CHAT_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "사용자의 문장에서 관심 키워드를 짧은 명사 형태로 하나만 추출하세요. "
+                        "예시: '장학금을 받고싶어요' → '장학금', 'AI 공모전이 궁금해요' → 'AI 공모전'. "
+                        "키워드만 출력하고 다른 설명은 절대 하지 마세요."
+                    ),
+                },
+                {"role": "user", "content": text},
+            ],
+            max_tokens=50,
+            temperature=0,
+        )
+        keyword = response.choices[0].message.content.strip()
+        return keyword if keyword else text
+    except Exception as e:
+        logger.warning("keyword extraction failed for %r: %s", text, e)
+        return text

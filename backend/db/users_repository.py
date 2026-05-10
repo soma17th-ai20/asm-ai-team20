@@ -18,6 +18,7 @@ from sqlalchemy import text
 
 from .connection import session_scope
 from service.embedding import embed_text
+from service.llm_judge import extract_keyword
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class UserRepository:
             raise ValueError(f"invalid email: {email!r}")
         if not interest_text or not interest_text.strip():
             raise ValueError("interest_text is empty")
-        interest_text = interest_text.strip()
+        interest_text = extract_keyword(interest_text.strip())
 
         embedding = embed_text(interest_text)
         emb_literal = "[" + ",".join(f"{x:.7f}" for x in embedding) + "]"

@@ -55,12 +55,45 @@ services:
       UPSTAGE_MODEL: ${UPSTAGE_MODEL:-solar-pro2}
       UPSTAGE_CHAT_COMPLETIONS_URL: ${UPSTAGE_CHAT_COMPLETIONS_URL:-https://api.upstage.ai/v1/solar/chat/completions}
       UPSTAGE_TIMEOUT_SECONDS: ${UPSTAGE_TIMEOUT_SECONDS:-20}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      DEV_RECIPIENT_EMAIL: ${DEV_RECIPIENT_EMAIL:-}
+      DAILY_LIMIT_PER_USER: ${DAILY_LIMIT_PER_USER:-5}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       # dev 모드 핫리로드용. 운영 빌드에서는 이 줄 주석.
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  notifier:
+    build:
+      context: ./backend
+    container_name: team20-notifier
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-team20}:${POSTGRES_PASSWORD:-team20pw}@postgres:5432/${POSTGRES_DB:-team20}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      DEV_RECIPIENT_EMAIL: ${DEV_RECIPIENT_EMAIL:-}
+      DAILY_LIMIT_PER_USER: ${DAILY_LIMIT_PER_USER:-5}
+    volumes:
+      - ./backend:/app
+    command: python -m notifier.worker
 
 volumes:
   postgres_data:

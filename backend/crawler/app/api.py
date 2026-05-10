@@ -7,8 +7,14 @@ from pydantic import BaseModel
 
 from .models import CrawlReport, StoredNotice
 from .service import NoticeCrawlService, build_service
+from service.ingestion import embed_pending
 
 router = APIRouter(prefix="/api", tags=["crawler"])
+
+
+def _make_repo():
+    from db.repository import PostgresNoticeRepository
+    return PostgresNoticeRepository()
 
 
 class SiteOut(BaseModel):
@@ -26,10 +32,11 @@ class NoticesOut(BaseModel):
 
 class CrawlResponse(BaseModel):
     reports: list[CrawlReport]
+    embedded: int
 
 
 def get_service() -> NoticeCrawlService:
-    return build_service()
+    return build_service(repository=_make_repo())
 
 
 @router.get("/health")
@@ -70,4 +77,5 @@ def trigger_crawl(source: Optional[str] = Query(default=None)) -> CrawlResponse:
         except KeyError as e:
             raise HTTPException(status_code=404, detail=str(e))
     reports = service.crawl_all(source)
-    return CrawlResponse(reports=reports)
+    embedded = embed_pending()
+    return CrawlResponse(reports=reports, embedded=embedded)
