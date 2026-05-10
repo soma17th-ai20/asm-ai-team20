@@ -63,15 +63,40 @@ API: <http://localhost:8000/docs>
 
 ## HTTP 엔드포인트
 
+### 시스템 / 크롤
 | 메서드 | 경로 | 용도 |
 | --- | --- | --- |
 | GET | `/api/health` | 헬스체크 |
 | GET | `/api/sources` | 크롤 대상 목록 |
 | GET | `/api/notices` | 저장된 공지 페이지네이션 |
-| POST | `/api/crawl` | 즉시 크롤 트리거 (스케줄러용 + 5번째 기능 "지금 크롤링" 버튼) |
-| **POST** | **`/api/users`** | **유저 등록 — 프론트가 보낸 `{email, interest_text}`를 임베딩해서 DB 저장** |
+| POST | `/api/crawl` | 즉시 크롤 트리거 (FE "지금 크롤링" 버튼) |
+
+### 사용자 / 인증
+| 메서드 | 경로 | 용도 |
+| --- | --- | --- |
+| POST | `/api/users` | 가입 — `{email, interest_text}` → user_id, 첫 관심사 등록 |
+| POST | `/api/users/login` | 이메일로 식별 (비밀번호 X, newsletter-style) |
 | GET | `/api/users` | 등록된 유저 + 관심사 목록 |
-| **POST** | **`/api/agent`** | **자연어 프롬프트 → ai_agent로 의도 해석 → 실 DB 함수 dispatch** |
+
+### 관심사 키워드 (LLM 우회 직접 CRUD — FE의 `/keywords` 페이지에서 사용)
+| 메서드 | 경로 | 용도 |
+| --- | --- | --- |
+| GET | `/api/users/{uid}/interests` | 키워드 목록 |
+| POST | `/api/users/{uid}/interests` | 키워드 추가 (`{interest_text}`) |
+| DELETE | `/api/users/{uid}/interests/{keyword}` | 키워드 삭제 |
+
+### 알림 설정 / 피드 / 피드백
+| 메서드 | 경로 | 용도 |
+| --- | --- | --- |
+| GET · PATCH | `/api/users/{uid}/settings` | 이메일 + `notification_frequency` (realtime/daily/weekly) |
+| GET | `/api/users/{uid}/notifications?hours=N` | 내가 받은 알림 (notifications ⨝ notices) |
+| POST | `/api/notifications/{nid}/feedback` | 👍/👎 (`{feedback: 'like'\|'dislike'\|null}`) |
+
+### AI 에이전트 / Slack
+| 메서드 | 경로 | 용도 |
+| --- | --- | --- |
+| POST | `/api/agent` | 자연어 프롬프트 → ai_agent 의도 해석 → 함수 dispatch |
+| POST | `/api/slack/command` | Slack 슬래시 커맨드 (HMAC 서명 검증) — 자세한 건 [SLACK.md](SLACK.md) |
 
 ### 에이전트 워크플로우 (5개 기능)
 
@@ -218,6 +243,7 @@ notifier/ratelimit.py # 유저당 일일 N건 한도 (Redis INCR, KST 기준)
 | `SMTP_FROM` | `SMTP_USER`로 폴백 | From 헤더 |
 | `DEV_RECIPIENT_EMAIL` | — | `users.email` 누락 시 폴백 |
 | `DAILY_LIMIT_PER_USER` | `5` | KST 자정 리셋 |
+| `SLACK_SIGNING_SECRET` | `""` | Slack 슬래시 커맨드 HMAC 검증. 비면 검증 스킵 (개발용). |
 
 ### 후속 v0.5
 
@@ -228,7 +254,7 @@ notifier/ratelimit.py # 유저당 일일 N건 한도 (Redis INCR, KST 기준)
 ## 통합 인터페이스 (다른 팀원용)
 
 - **권기혁(AI 파이프라인)** — `crawler.app.models.RawNotice`는 그대로. 추가로 `db.repository.PostgresNoticeRepository.list_pending_embeddings(limit)` / `.save_embeddings([(id, vec, model)])` 사용.
-- **이주호(스케줄러+알림)** — `scheduler/main.py`가 30분마다 `POST /api/crawl`. `notifier/worker.py`가 Redis 큐 소비 후 `notifications` 테이블 `status='sent'` 업데이트.
+- **이주호(스케줄러+알림)** — `scheduler/main.py`가 30분마다 `service.ingestion.run_full_ingestion()` 직접 호출 (HTTP 우회 — LLM 호출 포함 수 분 소요라 타임아웃 방지). `notifier/worker.py`가 Redis 큐 BLPOP → SMTP 발송 후 `notifications.status='sent'` 업데이트. Slack 슬래시 커맨드는 `api/slack.py` ([SLACK.md](SLACK.md) 참조).
 - **서성민(백엔드 API)** — DB가 SQLite → Postgres로 바뀌었다. SQLAlchemy 세션은 `db.connection.session_scope()` 컨텍스트매니저 사용.
 - **양현서(크롤러)** — 크롤러 코드는 그대로. `NoticeCrawlService(repository=PostgresNoticeRepository())`로 주입만 바꿈.
 
@@ -243,6 +269,7 @@ notifier/ratelimit.py # 유저당 일일 N건 한도 (Redis INCR, KST 기준)
 | `REDIS_HOST`, `REDIS_PORT` | 매칭 큐. docker-compose가 띄움. |
 | `SECRET_KEY` | Upstage solar-pro2 API key (ai_agent). |
 | `SMTP_*`, `DAILY_LIMIT_PER_USER`, `CRAWLER_API_URL`, `CRAWL_INTERVAL_MINUTES` | 이주호 모듈. |
+| `SLACK_SIGNING_SECRET` | Slack 슬래시 커맨드 검증. |
 
 ## 테스트
 
